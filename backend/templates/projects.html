@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}My Projects — ScopeGuard{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-800 mb-6">My Projects</h1>
+
+{% if projects %}
+  <div class="space-y-3">
+    {% for p in projects %}
+    <a href="/projects/{{ p.id }}"
+       class="flex items-center justify-between bg-white border border-gray-200
+              rounded-xl px-5 py-4 shadow-sm hover:border-indigo-300 transition-colors">
+      <div>
+        <p class="font-semibold text-gray-800">{{ p.title }}</p>
+        <p class="text-sm text-gray-500">Client: {{ p.client_name }}</p>
+      </div>
+      <span class="text-indigo-500 text-sm">View →</span>
+    </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-gray-500 text-sm">No projects yet.</p>
+{% endif %}
+{% endblock %}

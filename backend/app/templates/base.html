@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ScopeGuard{% endblock %}</title>
+  <!-- Tailwind via CDN: no build step needed -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <nav class="bg-white shadow px-6 py-3 flex items-center justify-between">
+    <a href="/" class="font-bold text-lg">ScopeGuard</a>
+    {% if session.get("user_id") %}
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <button class="text-sm text-gray-600 hover:underline">Log out</button>
+      </form>
+    {% endif %}
+  </nav>
+
+  <main class="max-w-3xl mx-auto p-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

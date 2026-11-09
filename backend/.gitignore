@@ -1,0 +1,18 @@
+.env
+venv/
+.venv/
+*.db
+__pycache__/
+
+.env.*
+!.env.example
+
+*.sqlite
+*.sqlite3
+
+*.py[cod]
+.pytest_cache/
+
+# Session cookies
+cj.txt
+*.cookie

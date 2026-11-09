@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} - ScopeGuard{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold">{{ project.title }}</h1>
+<p class="text-gray-600 mb-6">Client: {{ project.client_name }}</p>
+
+{# Messages from the payment buttons appear here #}
+<div id="pay-message" class="hidden mb-4 rounded p-3 text-sm" role="status"></div>
+
+{% if not paypal_client_id %}
+  <p class="mb-4 rounded p-3 text-sm bg-red-100 text-red-800">
+    PayPal is not set up yet (PAYPAL_CLIENT_ID is missing in .env).
+  </p>
+{% endif %}
+
+<ul class="space-y-3">
+  {% for m in project.milestones %}
+  <li class="bg-white rounded-lg shadow p-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="font-medium">{{ m.title }}</p>
+        <p class="text-sm text-gray-500">${{ m.amount_str }} &middot; agreement v{{ m.agreement_version }}</p>
+        {% if m.status == "PAID" %}
+          <p class="text-xs text-gray-500 mt-1">Capture ID: {{ capture_ids.get(m.id, "n/a") }}</p>
+        {% endif %}
+      </div>
+
+      {% if m.status == "PAID" %}
+        <span class="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800">PAID</span>
+      {% else %}
+        <span class="text-xs font-semibold px-2 py-1 rounded bg-yellow-100 text-yellow-800">PENDING</span>
+      {% endif %}
+    </div>
+
+    {# PayPal fills this empty box with its buttons #}
+    {% if paypal_client_id and m.id in payable_ids %}
+      <div class="paypal-container mt-3" data-milestone-id="{{ m.id }}"></div>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+
+{% if paypal_client_id %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&amp;currency=USD"></script>
+<script>
+  var messageBox = document.getElementById("pay-message");
+  var containers = document.querySelectorAll(".paypal-container");
+  var busy = false; // true while a payment is in progress (stops double clicks)
+
+  // Show a message: kind is "success", "info" or "error"
+  function showMessage(text, kind) {
+    var colors = {
+      success: "bg-green-100 text-green-800",
+      info: "bg-yellow-100 text-yellow-800",
+      error: "bg-red-100 text-red-800"
+    };
+    messageBox.className = "mb-4 rounded p-3 text-sm " + colors[kind];
+    messageBox.textContent = text;
+  }
+
+  // Lock or unlock all PayPal buttons
+  function setBusy(value) {
+    busy = value;
+    containers.forEach(function (box) {
+      box.classList.toggle("opacity-50", value);
+      box.classList.toggle("pointer-events-none", value);
+    });
+  }
+
+  // Send JSON to our backend; throw an error if the response is not OK
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) { throw new Error(data.error || "Request failed"); }
+        return data;
+      });
+    });
+  }
+
+  if (typeof paypal === "undefined") {
+    showMessage("Could not load PayPal. Please refresh the page.", "error");
+  } else {
+    containers.forEach(function (box) {
+      var milestoneId = Number(box.dataset.milestoneId);
+
+      paypal.Buttons({
+        // Runs on click: refuse a second click while one payment is running
+        onClick: function (data, actions) {
+          if (busy) { return actions.reject(); }
+          setBusy(true);
+          return actions.resolve();
+        },
+
+        // Ask our backend to create the order. It reads the amount from the DB.
+        createOrder: function () {
+          return postJson("/api/payments/create-order", { milestone_id: milestoneId })
+            .then(function (data) { return data.id; });
+        },
+
+        // Buyer approved: ask our backend to capture the money
+        onApprove: function (data) {
+          return postJson("/api/payments/capture-order", { order_id: data.orderID })
+            .then(function () {
+              showMessage("Payment successful! Updating the page...", "success");
+              setTimeout(function () { window.location.reload(); }, 1500);
+            });
+        },
+
+        onCancel: function () {
+          setBusy(false);
+          showMessage("Payment cancelled. You have not been charged.", "info");
+        },
+
+        onError: function (err) {
+          console.error(err);
+          setBusy(false);
+          showMessage("Something went wrong with the payment. Please try again.", "error");
+        }
+      }).render(box);
+    });
+  }
+</script>
+{% endif %}
+{% endblock %}
