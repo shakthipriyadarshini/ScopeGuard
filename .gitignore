@@ -1,0 +1,14 @@
+# Local database
+scopeguard.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
