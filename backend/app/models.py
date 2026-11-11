@@ -1,7 +1,19 @@
 """Database models (SQLAlchemy). Money is always stored as integer cents."""
+import hashlib
+import json
+import secrets
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, create_engine
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+)
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -39,10 +51,43 @@ class Project(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)
     client_name = Column(String, nullable=False)
-    invite_token = Column(String, unique=True, nullable=False)  # for the client link (later)
+    description = Column(Text, nullable=False, default="")
+    status = Column(String, nullable=False, default="DRAFT")  # DRAFT or ACTIVE
+    invite_token = Column(String, unique=True)  # empty until the project is published
     freelancer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     milestones = relationship("Milestone", back_populates="project", order_by="Milestone.id")
+    agreements = relationship("Agreement", back_populates="project", order_by="Agreement.version")
+
+    def publish(self):
+        """Publish the project: make an unguessable invite token (once) and mark it ACTIVE."""
+        if self.invite_token is None:
+            self.invite_token = secrets.token_urlsafe(24)
+        self.status = "ACTIVE"
+
+
+class Agreement(Base):
+    """One version of the project agreement. Versions are added, never overwritten."""
+
+    __tablename__ = "agreements"
+    # A project can have only one agreement per version number
+    __table_args__ = (UniqueConstraint("project_id", "version"),)
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    scope_json = Column(Text, nullable=False)  # deliverables, exclusions, timeline as JSON text
+    budget_cents = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="DRAFT")  # DRAFT, PENDING_CLIENT or ACTIVE
+    content_hash = Column(String)  # fingerprint of scope + budget, set when published
+    approved_at = Column(DateTime)  # set when the client approves
+
+    project = relationship("Project", back_populates="agreements")
+
+    def compute_hash(self):
+        """sha256 of the scope and budget. Sorted keys give the same text for the same data."""
+        scope = json.dumps(json.loads(self.scope_json), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(f"{scope}|{self.budget_cents}".encode("utf-8")).hexdigest()
 
 
 class Milestone(Base):

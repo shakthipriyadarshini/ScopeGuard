@@ -1,8 +1,9 @@
 """Create demo data:  python seed.py  (safe to run twice)."""
-import secrets
+import json
+from datetime import datetime, timezone
 
 from app import create_app
-from app.models import Milestone, Project, SessionLocal, User
+from app.models import Agreement, Milestone, Project, SessionLocal, User
 
 create_app()  # connects the database and creates the tables
 
@@ -20,11 +21,29 @@ with SessionLocal() as db:
         project = Project(
             title="E-commerce Website",
             client_name="Fashion Store",
-            invite_token=secrets.token_urlsafe(16),
+            description="Online store for a fashion brand: product pages, cart and checkout, admin dashboard.",
             freelancer_id=user.id,
         )
+        project.publish()  # creates the invite token and sets status ACTIVE
         db.add(project)
         db.flush()
+
+        # Agreement v1, already approved. Budget = the three milestones below ($200).
+        scope = {
+            "deliverables": ["Product catalog pages", "Shopping cart and checkout", "Admin dashboard"],
+            "exclusions": ["Mobile app", "Content writing"],
+            "timeline_days": 30,
+        }
+        agreement = Agreement(
+            project_id=project.id,
+            version=1,
+            scope_json=json.dumps(scope),
+            budget_cents=20000,
+            status="ACTIVE",
+            approved_at=datetime.now(timezone.utc),
+        )
+        agreement.content_hash = agreement.compute_hash()
+        db.add(agreement)
 
         # Three milestones, amounts in cents
         db.add_all(

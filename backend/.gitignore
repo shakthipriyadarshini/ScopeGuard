@@ -16,3 +16,18 @@ __pycache__/
 # Session cookies
 cj.txt
 *.cookie
+
+# Local database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
